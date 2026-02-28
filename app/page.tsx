@@ -54,19 +54,46 @@ function LoadingScreen() {
 }
 
 export default function Home() {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    // Only show loading screen on the very first visit
+    if (typeof window !== "undefined" && sessionStorage.getItem("visited")) {
+      return false;
+    }
+    return true;
+  });
+  const [mountKey] = useState(() => Date.now());
   const { theme } = useTheme();
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 2000);
-    return () => clearTimeout(timer);
-  }, []);
+    if (loading) {
+      const timer = setTimeout(() => {
+        setLoading(false);
+        sessionStorage.setItem("visited", "1");
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [loading]);
+
+  // Scroll to hash section after loading screen finishes
+  useEffect(() => {
+    if (!loading && window.location.hash) {
+      const id = window.location.hash.slice(1);
+      // Small delay to ensure DOM is painted
+      setTimeout(() => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+    }
+  }, [loading]);
 
   return (
     <main className={`min-h-screen transition-colors duration-500 ${theme === "dark" ? "bg-[#050816] text-white" : "bg-[#f0f2f5] text-gray-900"}`}>
       <AnimatePresence mode="wait">{loading && <LoadingScreen />}</AnimatePresence>
       {!loading && (
         <motion.div
+          key={`home-content-${mountKey}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8 }}

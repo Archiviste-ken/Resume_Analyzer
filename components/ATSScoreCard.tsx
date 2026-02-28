@@ -1,61 +1,70 @@
+"use client";
+
 import React from 'react';
-import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
-import 'react-circular-progressbar/dist/styles.css';
+import { motion } from 'framer-motion';
+import { useTheme } from '@/context/ThemeContext';
 
 interface ATSScoreCardProps {
-    score: number; // 0-100
-    maxScore?: number;
+  score: number;
+  label?: string;
 }
 
-const ATSScoreCard: React.FC<ATSScoreCardProps> = ({ score, maxScore = 100 }) => {
-    const percentage = Math.min((score / maxScore) * 100, 100);
-    
-    const getColor = (value: number): string => {
-        if (value >= 80) return '#10b981'; // Green
-        if (value >= 60) return '#f59e0b'; // Amber
-        if (value >= 40) return '#f97316'; // Orange
-        return '#ef4444'; // Red
-    };
+const ATSScoreCard: React.FC<ATSScoreCardProps> = ({ score, label = "ATS Score" }) => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const radius = 54;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (score / 100) * circumference;
 
-    const getLabel = (value: number): string => {
-        if (value >= 80) return 'Excellent';
-        if (value >= 60) return 'Good';
-        if (value >= 40) return 'Fair';
-        return 'Poor';
-    };
+  const getColor = (s: number) => {
+    if (s >= 80) return "#22c55e";
+    if (s >= 60) return "#eab308";
+    if (s >= 40) return "#f97316";
+    return "#ef4444";
+  };
 
-    const color = getColor(percentage);
-    const label = getLabel(percentage);
-
-    return (
-        <div className="flex flex-col items-center justify-center p-8 bg-white rounded-lg shadow-lg">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">ATS Score</h2>
-            
-            <div className="w-48 h-48">
-                <CircularProgressbar
-                    value={percentage}
-                    text={`${Math.round(percentage)}`}
-                    styles={buildStyles({
-                        rotation: 0.25,
-                        strokeLinecap: 'round',
-                        textSize: '32px',
-                        pathTransitionDuration: 0.5,
-                        pathColor: color,
-                        textColor: color,
-                        trailColor: '#e5e7eb',
-                    })}
-                />
-            </div>
-
-            <p className="mt-6 text-lg font-semibold" style={{ color }}>
-                {label}
-            </p>
-            
-            <p className="mt-2 text-sm text-gray-600">
-                {score} out of {maxScore} points
-            </p>
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="relative w-[130px] h-[130px]">
+        <svg width={130} height={130} className="-rotate-90">
+          <circle
+            cx={65}
+            cy={65}
+            r={radius}
+            fill="none"
+            stroke={isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}
+            strokeWidth={10}
+          />
+          <motion.circle
+            cx={65}
+            cy={65}
+            r={radius}
+            fill="none"
+            stroke={getColor(score)}
+            strokeWidth={10}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            initial={{ strokeDashoffset: circumference }}
+            animate={{ strokeDashoffset: offset }}
+            transition={{ duration: 1.5, ease: "easeOut" }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <motion.span
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+            className={`text-3xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
+          >
+            {score}
+          </motion.span>
         </div>
-    );
+      </div>
+      <span className={`text-sm font-medium ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+        {label}
+      </span>
+    </div>
+  );
 };
 
 export default ATSScoreCard;

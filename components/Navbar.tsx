@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import ThemeToggle from "./ThemeToggle";
 import { useTheme } from "@/context/ThemeContext";
@@ -10,6 +11,8 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { theme } = useTheme();
+  const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -18,6 +21,25 @@ export default function Navbar() {
   }, []);
 
   const isDark = theme === "dark";
+
+  const handleNavClick = useCallback(
+    (e: React.MouseEvent<HTMLAnchorElement>, sectionId: string) => {
+      e.preventDefault();
+      setMenuOpen(false);
+
+      if (pathname === "/") {
+        // Already on home page — smooth scroll
+        const el = document.getElementById(sectionId);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      } else {
+        // Navigate to home page with hash
+        router.push(`/#${sectionId}`);
+      }
+    },
+    [pathname, router]
+  );
 
   return (
     <motion.nav
@@ -49,19 +71,23 @@ export default function Navbar() {
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-1">
-            {["Features", "How it Works"].map((item) => (
-              <a
-                key={item}
-                href={`#${item.toLowerCase().replace(/ /g, "-")}`}
-                className={`relative text-sm px-4 py-2 rounded-xl transition-all duration-300 ${
-                  isDark
-                    ? "text-gray-400 hover:text-white hover:bg-white/[0.06]"
-                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-100/80"
-                }`}
-              >
-                {item}
-              </a>
-            ))}
+            {["Features", "How it Works"].map((item) => {
+              const sectionId = item.toLowerCase().replace(/ /g, "-");
+              return (
+                <a
+                  key={item}
+                  href={`/#${sectionId}`}
+                  onClick={(e) => handleNavClick(e, sectionId)}
+                  className={`relative text-sm px-4 py-2 rounded-xl transition-all duration-300 cursor-pointer ${
+                    isDark
+                      ? "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+                      : "text-gray-500 hover:text-gray-900 hover:bg-gray-100/80"
+                  }`}
+                >
+                  {item}
+                </a>
+              );
+            })}
             <ThemeToggle />
             <Link
               href="/analyze"
@@ -107,20 +133,23 @@ export default function Navbar() {
               className="md:hidden overflow-hidden"
             >
               <div className={`pb-4 pt-2 flex flex-col gap-1 border-t ${isDark ? "border-white/[0.06]" : "border-gray-200"}`}>
-                {["Features", "How it Works"].map((item) => (
-                  <a
-                    key={item}
-                    href={`#${item.toLowerCase().replace(/ /g, "-")}`}
-                    onClick={() => setMenuOpen(false)}
-                    className={`text-sm py-3 px-4 rounded-xl transition-all ${
-                      isDark
-                        ? "text-gray-400 hover:text-white hover:bg-white/[0.06]"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                    }`}
-                  >
-                    {item}
-                  </a>
-                ))}
+                {["Features", "How it Works"].map((item) => {
+                  const sectionId = item.toLowerCase().replace(/ /g, "-");
+                  return (
+                    <a
+                      key={item}
+                      href={`/#${sectionId}`}
+                      onClick={(e) => handleNavClick(e, sectionId)}
+                      className={`text-sm py-3 px-4 rounded-xl transition-all cursor-pointer ${
+                        isDark
+                          ? "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                      }`}
+                    >
+                      {item}
+                    </a>
+                  );
+                })}
                 <Link
                   href="/analyze"
                   onClick={() => setMenuOpen(false)}

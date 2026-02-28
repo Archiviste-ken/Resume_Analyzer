@@ -20,8 +20,8 @@ export async function POST(req: NextRequest) {
     let textContent = "";
 
     if (file.name.endsWith(".pdf")) {
-      // Dynamic import for pdf-parse
-      const pdfParse = (await import("pdf-parse")).default;
+      const pdf = await import("pdf-parse") as any;
+      const pdfParse = typeof pdf.default === "function" ? pdf.default : pdf;
       const pdfData = await pdfParse(buffer);
       textContent = pdfData.text;
     } else if (file.name.endsWith(".docx")) {

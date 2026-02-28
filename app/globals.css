@@ -4,6 +4,11 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Offset sections for fixed navbar */
+section[id] {
+  scroll-margin-top: 5rem;
+}
+
 /* ── Dark theme (default) ── */
 html.dark body {
   background-color: #050816;

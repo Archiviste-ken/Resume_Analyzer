@@ -12,30 +12,39 @@ import { useTheme } from "@/context/ThemeContext";
 function LoadingScreen() {
   return (
     <motion.div
-      className="fixed inset-0 z-[100] bg-gray-950 flex flex-col items-center justify-center"
+      className="fixed inset-0 z-[100] bg-[#050816] flex flex-col items-center justify-center"
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
+      transition={{ duration: 0.8, ease: "easeOut" }}
     >
+      {/* Ambient glow */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full bg-blue-600/20 blur-[100px]" />
+        <div className="absolute top-1/3 right-1/3 w-[300px] h-[300px] rounded-full bg-purple-600/15 blur-[80px]" />
+      </div>
+
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.4 }}
-        className="flex flex-col items-center gap-6"
+        transition={{ duration: 0.5 }}
+        className="relative flex flex-col items-center gap-8"
       >
         <motion.div
           animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-xl shadow-blue-500/30"
+          transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+          className="relative w-16 h-16"
         >
-          <span className="text-white font-bold text-lg">AI</span>
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-cyan-500 blur-lg opacity-60" />
+          <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-cyan-500 flex items-center justify-center">
+            <span className="text-white font-bold text-xl tracking-tight">AI</span>
+          </div>
         </motion.div>
-        <div className="flex items-center gap-1.5">
-          {[0, 1, 2, 3].map((i) => (
+        <div className="flex items-center gap-2">
+          {[0, 1, 2, 3, 4].map((i) => (
             <motion.div
               key={i}
-              className="w-2 h-2 rounded-full bg-blue-400"
-              animate={{ scale: [1, 1.8, 1], opacity: [0.3, 1, 0.3] }}
-              transition={{ duration: 1, repeat: Infinity, delay: i * 0.15 }}
+              className="w-1.5 h-1.5 rounded-full bg-blue-400"
+              animate={{ scale: [1, 2, 1], opacity: [0.2, 1, 0.2] }}
+              transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.12 }}
             />
           ))}
         </div>
@@ -49,18 +58,18 @@ export default function Home() {
   const { theme } = useTheme();
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1800);
+    const timer = setTimeout(() => setLoading(false), 2000);
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <main className={`min-h-screen transition-colors duration-500 ${theme === "dark" ? "bg-gray-950 text-white" : "bg-gray-50 text-gray-900"}`}>
+    <main className={`min-h-screen transition-colors duration-500 ${theme === "dark" ? "bg-[#050816] text-white" : "bg-[#f0f2f5] text-gray-900"}`}>
       <AnimatePresence mode="wait">{loading && <LoadingScreen />}</AnimatePresence>
       {!loading && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.8 }}
         >
           <Navbar />
           <Hero />

@@ -1,8 +1,7 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, AlertCircle, Zap, TrendingUp, Target } from 'lucide-react';
-
-'use client';
-
 
 const DashboardPage = () => {
     const [atsScore, setAtsScore] = useState(0);

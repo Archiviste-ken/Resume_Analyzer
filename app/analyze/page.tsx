@@ -196,13 +196,38 @@ export default function AnalyzePage() {
         body: formData,
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Analysis failed");
       }
 
-      setAnalysis(data.analysis);
+      const data = await res.json();
+
+      // Ensure all required fields have safe defaults
+      const a = data.analysis ?? {};
+      a.atsScore = typeof a.atsScore === "number" ? a.atsScore : 50;
+      a.atsDetails = {
+        formatting: a.atsDetails?.formatting ?? 50,
+        keywords: a.atsDetails?.keywords ?? 50,
+        structure: a.atsDetails?.structure ?? 50,
+        readability: a.atsDetails?.readability ?? 50,
+      };
+      a.skills = {
+        technical: Array.isArray(a.skills?.technical) ? a.skills.technical : [],
+        soft: Array.isArray(a.skills?.soft) ? a.skills.soft : [],
+        tools: Array.isArray(a.skills?.tools) ? a.skills.tools : [],
+      };
+      a.experience = {
+        totalYears: a.experience?.totalYears ?? 0,
+        positions: Array.isArray(a.experience?.positions) ? a.experience.positions : [],
+      };
+      a.education = Array.isArray(a.education) ? a.education : [];
+      a.strengths = Array.isArray(a.strengths) ? a.strengths : [];
+      a.weaknesses = Array.isArray(a.weaknesses) ? a.weaknesses : [];
+      a.improvements = Array.isArray(a.improvements) ? a.improvements : [];
+      a.summary = a.summary ?? "Resume analysis complete.";
+
+      setAnalysis(a);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       setError(message);

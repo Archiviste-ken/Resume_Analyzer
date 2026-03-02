@@ -47,12 +47,34 @@ export async function POST(req: NextRequest) {
     // =========================
 if (file.name.toLowerCase().endsWith(".pdf")) {
   try {
-    const pdfParse = (await import("pdf-parse")) as unknown as (
-      buffer: Buffer
-    ) => Promise<{ text: string }>;
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
-    const data = await pdfParse(buffer);
-    textContent = data.text;
+    (pdfjs as unknown as {
+  GlobalWorkerOptions: { workerSrc: string };
+}).GlobalWorkerOptions.workerSrc =
+      `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+
+    const loadingTask = pdfjs.getDocument({ data: buffer });
+    const pdf = await loadingTask.promise;
+
+    let extractedText = "";
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const text = await page.getTextContent();
+
+      const pageText = text.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ");
+
+      extractedText += pageText + "\n";
+    }
+
+    if (!extractedText.trim()) {
+      throw new Error("No readable text");
+    }
+
+    textContent = extractedText;
 
   } catch (err) {
     console.error("PDF parse error:", err);

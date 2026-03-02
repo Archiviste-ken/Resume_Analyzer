@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
+import path from "path";
+import { pathToFileURL } from "url";
 
 export const maxDuration = 60;
 
@@ -33,7 +35,16 @@ export async function POST(req: NextRequest) {
     if (file.name.toLowerCase().endsWith(".pdf")) {
       try {
         const { PDFParse } = await import("pdf-parse");
-        PDFParse.setWorker("");
+        const workerPath = path.join(
+          process.cwd(),
+          "node_modules",
+          "pdf-parse",
+          "dist",
+          "pdf-parse",
+          "cjs",
+          "pdf.worker.mjs"
+        );
+        PDFParse.setWorker(pathToFileURL(workerPath).href);
         const parser = new PDFParse({ data: new Uint8Array(buffer) });
         const pdfData = await parser.getText();
         textContent = pdfData.text;

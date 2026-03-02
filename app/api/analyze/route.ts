@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
-import path from "path";
-import { pathToFileURL } from "url";
 
+export const runtime = "nodejs"; // REQUIRED for file parsing
 export const maxDuration = 60;
 
+// initialize Groq safely
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
 export async function POST(req: NextRequest) {
   try {
+    // ✅ API key safety check
     if (!process.env.GROQ_API_KEY) {
       return NextResponse.json(
-        { error: "GROQ_API_KEY not configured." },
+        { error: "Server misconfigured: missing API key." },
         { status: 500 }
       );
     }
@@ -23,41 +24,47 @@ export async function POST(req: NextRequest) {
     const jobDescription = formData.get("jobDescription") as string | null;
 
     if (!file) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Please upload a resume." },
+        { status: 400 }
+      );
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    // 🚫 block very large files (prevents server crash)
+    if (file.size > 4 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "File too large. Max 4MB." },
+        { status: 400 }
+      );
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
 
     let textContent = "";
 
-    // ✅ PDF parsing
-    if (file.name.toLowerCase().endsWith(".pdf")) {
-      try {
-        const { PDFParse } = await import("pdf-parse");
-        const workerPath = path.join(
-          process.cwd(),
-          "node_modules",
-          "pdf-parse",
-          "dist",
-          "pdf-parse",
-          "cjs",
-          "pdf.worker.mjs"
-        );
-        PDFParse.setWorker(pathToFileURL(workerPath).href);
-        const parser = new PDFParse({ data: new Uint8Array(buffer) });
-        const pdfData = await parser.getText();
-        textContent = pdfData.text;
-      } catch (err) {
-        console.error("PDF parse error:", err);
-        return NextResponse.json(
-          { error: "Failed to parse PDF. Please ensure the file is a valid PDF." },
-          { status: 400 }
-        );
-      }
-    }
+    // =========================
+    // ✅ PDF parsing (build-safe)
+    // =========================
+if (file.name.toLowerCase().endsWith(".pdf")) {
+  try {
+    const pdfParse = (await import("pdf-parse")) as unknown as (
+      buffer: Buffer
+    ) => Promise<{ text: string }>;
 
+    const data = await pdfParse(buffer);
+    textContent = data.text;
+
+  } catch (err) {
+    console.error("PDF parse error:", err);
+    return NextResponse.json(
+      { error: "Unable to read PDF." },
+      { status: 400 }
+    );
+  }
+}
+    // =========================
     // ✅ DOCX parsing
+    // =========================
     else if (file.name.toLowerCase().endsWith(".docx")) {
       try {
         const mammoth = await import("mammoth");
@@ -66,7 +73,7 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         console.error("DOCX parse error:", err);
         return NextResponse.json(
-          { error: "Failed to parse DOCX." },
+          { error: "Unable to read DOCX." },
           { status: 400 }
         );
       }
@@ -79,54 +86,58 @@ export async function POST(req: NextRequest) {
 
     if (!textContent.trim()) {
       return NextResponse.json(
-        { error: "No text extracted from file." },
+        { error: "No readable text found in resume." },
         { status: 400 }
       );
     }
 
-    // Truncate very long resumes to avoid hitting token limits
-    const maxChars = 6000;
-    if (textContent.length > maxChars) {
-      textContent = textContent.substring(0, maxChars);
+    // limit text to avoid token overflow & timeouts
+    if (textContent.length > 6000) {
+      textContent = textContent.slice(0, 6000);
     }
 
-    // ✅ PROMPT with explicit JSON schema
+    // =========================
+    // ✅ PROMPT
+    // =========================
     const prompt = `
-You are an expert ATS resume analyzer. Analyze the following resume and return a JSON object with EXACTLY this structure. All number scores must be between 0 and 100.
+You are an expert ATS resume analyzer.
 
 RESUME:
 ${textContent}
 
 ${jobDescription ? `JOB DESCRIPTION:\n${jobDescription}` : ""}
 
-Return ONLY a valid JSON object with EXACTLY this structure (no markdown, no explanation, no extra text):
+Return ONLY valid JSON with:
+
 {
-  "atsScore": <number 0-100>,
+  "atsScore": number,
   "atsDetails": {
-    "formatting": <number 0-100>,
-    "keywords": <number 0-100>,
-    "structure": <number 0-100>,
-    "readability": <number 0-100>
+    "formatting": number,
+    "keywords": number,
+    "structure": number,
+    "readability": number
   },
   "skills": {
-    "technical": [<list of technical skill strings>],
-    "soft": [<list of soft skill strings>],
-    "tools": [<list of tool/platform strings>]
+    "technical": [],
+    "soft": [],
+    "tools": []
   },
   "experience": {
-    "totalYears": <number or string>,
-    "positions": [{"title": "<string>", "company": "<string>", "duration": "<string>"}]
+    "totalYears": number,
+    "positions": [{"title":"","company":"","duration":""}]
   },
-  "education": [{"degree": "<string>", "institution": "<string>", "year": "<string>"}],
-  "strengths": [<list of strength strings>],
-  "weaknesses": [<list of weakness strings>],
-  "improvements": [{"category": "<string>", "suggestion": "<string>", "priority": "high|medium|low"}],
-  ${jobDescription ? `"jobMatch": {"score": <number 0-100>, "matchedKeywords": [<strings>], "missingKeywords": [<strings>], "suggestions": [<strings>]},` : `"jobMatch": null,`}
-  "summary": "<brief 1-2 sentence summary of the resume>"
+  "education": [{"degree":"","institution":"","year":""}],
+  "strengths": [],
+  "weaknesses": [],
+  "improvements": [{"category":"","suggestion":"","priority":"high|medium|low"}],
+  ${jobDescription ? `"jobMatch": {"score": number, "matchedKeywords": [], "missingKeywords": [], "suggestions": []},` : `"jobMatch": null,`}
+  "summary": ""
 }
 `;
 
-    // ✅ GROQ CALL
+    // =========================
+    // ✅ GROQ REQUEST
+    // =========================
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
       temperature: 0.2,
@@ -135,7 +146,7 @@ Return ONLY a valid JSON object with EXACTLY this structure (no markdown, no exp
         {
           role: "system",
           content:
-            "You are an ATS resume analyzer. You MUST return ONLY valid JSON matching the exact schema requested. No markdown, no explanation, no extra text.",
+            "Return ONLY valid JSON. No explanation. No markdown.",
         },
         {
           role: "user",
@@ -144,61 +155,60 @@ Return ONLY a valid JSON object with EXACTLY this structure (no markdown, no exp
       ],
     });
 
-    let text = completion.choices[0].message.content ?? "";
+    let text = completion.choices?.[0]?.message?.content ?? "";
 
-    // remove markdown if model adds it
+    // remove markdown if AI adds it
     text = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
 
-    // Try to extract JSON if there's extra text around it
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      text = jsonMatch[0];
-    }
+    // extract JSON safely
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) text = match[0];
 
     let analysis;
-
     try {
       analysis = JSON.parse(text);
     } catch {
-      console.error("Invalid JSON from AI:\n", text);
+      console.error("Invalid JSON from AI:", text);
       return NextResponse.json(
-        { error: "AI returned invalid JSON. Please try again." },
+        { error: "AI response parsing failed." },
         { status: 500 }
       );
     }
 
-    // Ensure required fields exist with defaults
-    analysis.atsScore = typeof analysis.atsScore === "number" ? analysis.atsScore : 50;
-    analysis.atsDetails = {
-      formatting: analysis.atsDetails?.formatting ?? 50,
-      keywords: analysis.atsDetails?.keywords ?? 50,
-      structure: analysis.atsDetails?.structure ?? 50,
-      readability: analysis.atsDetails?.readability ?? 50,
-    };
-    analysis.skills = {
-      technical: Array.isArray(analysis.skills?.technical) ? analysis.skills.technical : [],
-      soft: Array.isArray(analysis.skills?.soft) ? analysis.skills.soft : [],
-      tools: Array.isArray(analysis.skills?.tools) ? analysis.skills.tools : [],
-    };
-    analysis.experience = {
-      totalYears: analysis.experience?.totalYears ?? 0,
-      positions: Array.isArray(analysis.experience?.positions) ? analysis.experience.positions : [],
-    };
-    analysis.education = Array.isArray(analysis.education) ? analysis.education : [];
-    analysis.strengths = Array.isArray(analysis.strengths) ? analysis.strengths : [];
-    analysis.weaknesses = Array.isArray(analysis.weaknesses) ? analysis.weaknesses : [];
-    analysis.improvements = Array.isArray(analysis.improvements) ? analysis.improvements : [];
-    analysis.summary = analysis.summary ?? "Resume analysis complete.";
+    // =========================
+    // ✅ SAFE DEFAULTS
+    // =========================
+    analysis.atsScore ??= 50;
+
+    analysis.atsDetails ??= {};
+    analysis.atsDetails.formatting ??= 50;
+    analysis.atsDetails.keywords ??= 50;
+    analysis.atsDetails.structure ??= 50;
+    analysis.atsDetails.readability ??= 50;
+
+    analysis.skills ??= { technical: [], soft: [], tools: [] };
+    analysis.experience ??= { totalYears: 0, positions: [] };
+    analysis.education ??= [];
+    analysis.strengths ??= [];
+    analysis.weaknesses ??= [];
+    analysis.improvements ??= [];
+    analysis.summary ??= "Resume analysis complete.";
+
     if (jobDescription && !analysis.jobMatch) {
-      analysis.jobMatch = { score: 0, matchedKeywords: [], missingKeywords: [], suggestions: [] };
+      analysis.jobMatch = {
+        score: 0,
+        matchedKeywords: [],
+        missingKeywords: [],
+        suggestions: [],
+      };
     }
 
     return NextResponse.json({ success: true, analysis });
-  } catch (error: unknown) {
-    console.error("Analysis error:", error);
 
+  } catch (error) {
+    console.error("Analysis error:", error);
     return NextResponse.json(
-      { error: "Analysis failed. Please try again." },
+      { error: "Analysis failed. Try again." },
       { status: 500 }
     );
   }
